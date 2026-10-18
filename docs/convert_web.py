@@ -2,6 +2,7 @@
 the weights (fp16 where the ONNX stores fp16).
 
     python docs/convert_web.py [--onnx docs/play.onnx] [--out docs/play.wgr]
+    python docs/convert_web.py --int8 [--group 64] --out docs/play_int8.wgr     # int8 matmul and conv weights, 12 MB
 
 The JS runtime (wgr.js) only creates buffers, pipelines and one bind group, then replays the dispatch list. Everything else
 is decided here, for this one static graph:
@@ -12,6 +13,10 @@ is decided here, for this one static graph:
 - Gemm, Einsum, Conv, ConvTranspose take the elementwise tree that consumes them as an epilogue,
 - Softmax, ReduceMean, ReduceSum read their input through the same inlined functions,
 - a liveness-based plan packs every materialized tensor into the arena.
+--int8 stores the weights of Gemm, Einsum, Conv and ConvTranspose (16384 elements and up) as symmetric int8 with an fp32
+scale per output channel (or per --group inputs), 4 to a u32; kernels compute q * scale in fp32. Embeddings, norms,
+biases and position tables stay fp16. Constants folded from such a weight are folded again from its int8 values, so the
+file computes exactly what the model with dequantized weights computes.
 """
 import argparse
 import json
@@ -43,7 +48,64 @@ struct Prm { o: array<vec4<u32>, 16> }
 var<private> ACC: f32;
 """
 H16 = '@group(0) @binding(3) var<storage, read> H: array<u32>;\n'
-OPT = {'f16': True}   # keep the fp16 weights fp16 on the GPU (read with unpack2x16float), instead of expanding them to fp32
+Q8 = '@group(0) @binding(4) var<storage, read> Q: array<u32>;\n'
+OPT = {'f16': True,   # keep the fp16 weights fp16 on the GPU (read with unpack2x16float), instead of expanding them to fp32
+       'group': 0}    # --int8 --group: inputs per scale of the int8 weights (0: one scale per output channel)
+QMAX = 127
+
+
+def quantize(c, group=0, qmax=QMAX):
+    """Symmetric integer weights for c (taps, inputs, outputs), computed in fp32: one scale per output channel (group 0)
+    or per group of `group` consecutive inputs of one tap and one output; scale = absmax / qmax, q = round(w / scale) in
+    [-qmax, qmax]. Returns q (int8, the shape of c) and the scales: (outputs,) or (taps, inputs // group, outputs).
+    The browser computes q * scale in fp32 (exact integer, one correctly rounded product), so q.astype(f32) * scale is
+    the weight it uses, bit for bit."""
+    c = np.asarray(c, np.float32)
+    T, I, O = c.shape
+    if group:
+        group = min(group, I)
+        assert I % group == 0, (c.shape, group)
+        g = c.reshape(T, I // group, group, O)
+        scale = (np.abs(g).max(2) / np.float32(qmax)).astype(np.float32)
+        scale = np.where(scale > 0, scale, np.float32(1.0)).astype(np.float32)
+        q = np.clip(np.rint(g / scale[:, :, None]), -qmax, qmax).astype(np.int8).reshape(T, I, O)
+    else:
+        scale = (np.abs(c).max((0, 1)) / np.float32(qmax)).astype(np.float32)
+        scale = np.where(scale > 0, scale, np.float32(1.0)).astype(np.float32)
+        q = np.clip(np.rint(c / scale), -qmax, qmax).astype(np.int8)
+    return q, scale
+
+
+def dequantize(q, scale):
+    return q.astype(np.float32) * (scale if scale.ndim == 1 else np.repeat(scale, q.shape[1] // scale.shape[1], 1))
+
+
+# ONNX weight layouts <-> quantize()'s (taps, inputs, outputs): Gemm and Einsum 'abcd,de->abce' (K, N), Conv (O, I, KH,
+# KW), ConvTranspose (I, O, KH, KW)
+TO_C = {'mm': lambda w: w[None],
+        'conv': lambda w: w.transpose(2, 3, 1, 0).reshape(-1, w.shape[1], w.shape[0]),
+        'convT': lambda w: w.transpose(2, 3, 0, 1).reshape(-1, w.shape[0], w.shape[1])}
+FROM_C = {'mm': lambda c, s: c[0],
+          'conv': lambda c, s: c.reshape(s[2], s[3], s[1], s[0]).transpose(3, 2, 0, 1),
+          'convT': lambda c, s: c.reshape(s[2], s[3], s[0], s[1]).transpose(2, 3, 0, 1)}
+
+
+def scale_index(kind, shape, group, i='i'):
+    """WGSL index into the scales (stored as quantize() returns them, flat) of element i of an ONNX weight."""
+    if kind == 'mm':
+        K, N = shape
+        g = min(group, K)
+        return f'{i} % {N}u' if not group else f'({i} / {N * g}u) * {N}u + {i} % {N}u'
+    if kind == 'conv':
+        O, I, KH, KW = shape
+        o, c, tap = f'({i} / {I * KH * KW}u)', f'(({i} / {KH * KW}u) % {I}u)', f'({i} % {KH * KW}u)'
+    else:
+        I, O, KH, KW = shape
+        o, c, tap = f'(({i} / {KH * KW}u) % {O}u)', f'({i} / {O * KH * KW}u)', f'({i} % {KH * KW}u)'
+    if not group:
+        return o
+    g = min(group, I)
+    return f'({tap} * {I // g}u + {c} / {g}u) * {O}u + {o}'
 
 
 def prod(s):
@@ -107,13 +169,14 @@ class Graph:
         self.const = {i.name: numpy_helper.to_array(i) for i in g.initializer}
         for k, v in self.const.items():
             self.shape[k] = tuple(v.shape)
-        self.f16 = set()
+        self.f16, self.q8 = set(), {}
         self.inputs = [i.name for i in g.input if i.name not in self.const]
         self.outputs = [o.name for o in g.output]
-        self.nodes = []
+        self.nodes, self.folded = [], []
         for n in g.node:
             if all(x == '' or x in self.const for x in n.input):
                 self.fold(n)
+                self.folded.append(n)
             else:
                 self.nodes.append(n)
         self.base = {}
@@ -161,6 +224,41 @@ class Graph:
 
     def cval(self, t):
         return self.const[self.B(t)]
+
+    def mark_int8(self, group=0, min_size=16384):
+        """--int8: every fp16 weight with at least min_size elements that is only read as the weight of a Gemm, an Einsum
+        'abcd,de->abce', a Conv or a ConvTranspose becomes int8 with fp32 scales (quantize()); self.q8: name -> (kind,
+        shape, q in the ONNX layout, flat scales). Embeddings, norms, biases and position tables stay fp16."""
+        reads = defaultdict(set)
+        for n in self.nodes:
+            for j, x in enumerate(n.input):
+                b = self.B(x) if x else None
+                if b not in self.f16:
+                    continue
+                kind = None
+                if j == 1 and self.shape[x] == self.shape[b] and attrs(n).get('group', 1) == 1:
+                    eq = attrs(n).get('equation', b'')
+                    eq = eq.decode() if isinstance(eq, bytes) else eq
+                    kind = {'Gemm': 'mm', 'Conv': 'conv', 'ConvTranspose': 'convT'}.get(n.op_type)
+                    if n.op_type == 'Einsum' and eq == 'abcd,de->abce':
+                        kind = 'mm'
+                    if n.op_type == 'Gemm' and (attrs(n).get('transA', 0) or attrs(n).get('transB', 0)):
+                        kind = None
+                reads[b].add(kind)
+        self.q8 = {}
+        for t, kinds in reads.items():
+            if len(kinds) == 1 and None not in kinds and prod(self.shape[t]) >= min_size:
+                kind, w = next(iter(kinds)), self.const[t].astype(np.float32)
+                q, s = quantize(TO_C[kind](w), group)
+                self.q8[t] = (kind, w.shape, FROM_C[kind](q, w.shape), s)
+        # constants folded from an int8 weight (the conditioning of each fixed noise level reads taulin's weight) are
+        # folded again from its dequantized values: the file then computes exactly what the dequantized model computes
+        for t, (kind, shape, q, s) in self.q8.items():
+            self.const[t] = FROM_C[kind](dequantize(TO_C[kind](q), s), shape)
+        for n in self.folded:
+            if not any(o in self.q8 for o in n.output):
+                self.fold(n)
+        return self.q8
 
 
 class Plan:
@@ -252,6 +350,11 @@ class Kernel:
         elif t != self.root and (t in G.const):
             if prod(G.shape[t]) == 1:
                 body = f'return {lit(G.const[t].ravel()[0])};'
+            elif t in G.q8:      # int8, 4 to a u32 (little-endian), sign-extended by shifts, times its fp32 scale
+                kind, shape = G.q8[t][:2]
+                body = (f'let j = {self.slot(("Q", t))} + i; '
+                        f'let q = f32((bitcast<i32>(Q[j >> 2u]) << ((3u - (j & 3u)) << 3u)) >> 24u); '
+                        f'return q * W[{self.slot(("S", t))} + {scale_index(kind, shape, OPT["group"])}];')
             elif OPT['f16'] and t in G.f16:
                 body = (f'let j = {self.slot(("H", t))} + i; let v = unpack2x16float(H[j >> 1u]); '
                         f'return select(v.x, v.y, (j & 1u) == 1u);')
@@ -357,6 +460,18 @@ class Kernel:
             return f'let j = u32({j}); return {self.call(d, f"j * {inner}u{r}")};'
         raise NotImplementedError(op)
 
+    def raw_int8(self, t):
+        """With one scale per output channel (--int8, --group 0), the weight operand of a matmul or conv as its integers,
+        and a function of the output column giving ' * scale' for the kernel's accumulated sum; (f(t), '') otherwise."""
+        t = self.G.B(t)
+        if t not in self.G.q8 or OPT['group']:
+            return self.f(t), lambda col: ''
+        if ('q', t) not in self.fns:
+            name = self.fns[('q', t)] = f'f{len(self.fns)}'
+            self.lines.append(f'fn {name}(i: u32) -> f32 {{ let j = {self.slot(("Q", t))} + i; '
+                              f'return f32((bitcast<i32>(Q[j >> 2u]) << ((3u - (j & 3u)) << 3u)) >> 24u); }}')
+        return self.fns[('q', t)], lambda col: f' * W[{self.slot(("S", t))} + {col}]'
+
     def source(self, main):
         return '\n'.join(self.lines) + '\n' + main
 
@@ -452,14 +567,14 @@ def build(G):
         TM, TN, TK, RM, RN = tiles(M, N, K)
         WX, WY = TN // RN, TM // RM
         NT = WX * WY
-        la, lb = k.f(n.input[0]), k.f(n.input[1])
+        la, (lb, sc) = k.f(n.input[0]), k.raw_int8(n.input[1])
         alpha, beta = attrs(n).get('alpha', 1.0), attrs(n).get('beta', 1.0)
         bias = ''
         if n.op_type == 'Gemm' and len(n.input) > 2 and n.input[2] and beta != 0:
             bias = f' + {lit(beta) + " * " if beta != 1 else ""}{k.call(n.input[2], bidx((M, N), G.shape[n.input[2]], "oi"))}'
         fr = k.f(R)
         if M == 1 and K <= 2048:       # the row in workgroup memory: at most 8 KB
-            return gemv(k, R, fr, la, lb, bias, alpha, B1, B2, N, K, sa, sb, so)
+            return gemv(k, R, fr, la, lb, bias, alpha, B1, B2, N, K, sa, sb, so, sc)
         mk, kk_, nk = M % TM, K % TK, N % TN     # bounds checks only where a tile can run off the edge
 
         def loads(total, body):
@@ -493,7 +608,7 @@ def build(G):
         for r in range(RM):
             for c in range(RN):
                 g = cond(mk and f'm < {M}u', nk and f'nn < {N}u')
-                body = (f'let oi = bo + {lin(so[2:], ["m", "nn"])}; ACC = {lit(alpha) + " * " if alpha != 1 else ""}c{r}_{c}{bias}; '
+                body = (f'let oi = bo + {lin(so[2:], ["m", "nn"])}; ACC = {lit(alpha) + " * " if alpha != 1 else ""}c{r}_{c}{sc("nn")}{bias}; '
                         + store(k, R, f'{fr}(oi)', 'oi'))
                 epi.append(f'{{ let m = m0 + lid.y{f" + {r * WY}u" if r else ""}; let nn = n0 + lid.x{f" + {c * WX}u" if c else ""}; '
                            + (f'if ({g}) {{ {body} }} }}' if g else f'{body} }}'))
@@ -520,7 +635,7 @@ fn main(@builtin(workgroup_id) wg: vec3<u32>, @builtin(local_invocation_id) lid:
 }}"""
         return k, main, ((N + TN - 1) // TN, (M + TM - 1) // TM, B1 * B2)
 
-    def gemv(k, R, fr, la, lb, bias, alpha, B1, B2, N, K, sa, sb, so):
+    def gemv(k, R, fr, la, lb, bias, alpha, B1, B2, N, K, sa, sb, so, sc):
         """one row: the row in shared memory, K split over KS threads per column, 4 independent sums per thread."""
         TN, KS = TILE.get('gv', (64, 4))
         TN = min(TN, pow2(N))
@@ -550,7 +665,7 @@ fn main(@builtin(workgroup_id) wg: vec3<u32>, @builtin(local_invocation_id) lid:
   workgroupBarrier();
   if (lid.y == 0u && {g}) {{
     var t = 0.0; for (var j = 0u; j < {KS}u; j++) {{ t += red[j * {TN}u + lid.x]; }}
-    let oi = bo + n * {so[3]}u; ACC = {lit(alpha) + " * " if alpha != 1 else ""}t{bias};
+    let oi = bo + n * {so[3]}u; ACC = {lit(alpha) + " * " if alpha != 1 else ""}t{sc("n")}{bias};
     {store(k, R, f"{fr}(oi)", "oi")}
   }}
 }}"""
@@ -566,7 +681,7 @@ fn main(@builtin(workgroup_id) wg: vec3<u32>, @builtin(local_invocation_id) lid:
         KH, KW = G.shape[w][2:]
         s = a.get('strides', [1, 1])
         assert a.get('group', 1) == 1 and a.get('dilations', [1, 1]) == [1, 1] and so[0] == 1
-        fx, fw = k.f(x), k.f(w)
+        fx, (fw, sc) = k.f(x), k.raw_int8(w)
         bias = f' + {k.call(n.input[2], "co")}' if len(n.input) > 2 and n.input[2] else ''
         if n.op_type == 'Conv':
             ap = a.get('auto_pad', b'NOTSET')
@@ -594,7 +709,7 @@ fn main(@builtin(workgroup_id) wg: vec3<u32>, @builtin(local_invocation_id) lid:
                 f'  let oi = g.x; if (oi >= {cnt}u) {{ return; }}\n'
                 f'  let co = oi / {Ho * Wo}u; let oy = (oi / {Wo}u) % {Ho}u; let ox = oi % {Wo}u;\n  var acc = 0.0;\n'
                 f'  for (var ci = 0u; ci < {Ci}u; ci++) {{ for (var ky = 0u; ky < {KH}u; ky++) {{ for (var kx = 0u; kx < {KW}u; kx++) {{\n'
-                f'      {inner}\n  }} }} }}\n  ACC = acc{bias};\n  {store(k, R, f"{fr}(oi)", "oi")}\n}}')
+                f'      {inner}\n  }} }} }}\n  ACC = acc{sc("co")}{bias};\n  {store(k, R, f"{fr}(oi)", "oi")}\n}}')
         return k, main, ((cnt + 63) // 64, 1, 1)
 
     def red_kernel(R):
@@ -721,15 +836,19 @@ def layout(G, P, kernels):
                 release(off[t], rnd(words(t)))
     for d, (_, slots, _, R) in enumerate(kernels):
         for kind, t in slots:
-            assert kind in 'WH' or t in off, t
-    # weights
+            assert kind in 'WHQS' or t in off, t
+    # weights; --int8: each int8 tensor's scales ('S') sit with the fp32 weights, its bytes ('Q') in a third blob
     used = []
     for _, slots, _, _ in kernels:
         for kind, t in slots:
-            if kind in 'WH' and t not in used:
-                used.append(t)
-    w16 = [t for t in used if t in G.f16]
-    w32 = [t for t in used if t not in G.f16]
+            key = t if kind in 'WH' else (kind, t)
+            if kind != 'A' and key not in used:
+                used.append(key)
+    w16 = [t for t in used if not isinstance(t, tuple) and t in G.f16]
+    w32 = [t for t in used if not isinstance(t, tuple) and t not in G.f16]
+    w32 += [k for k in used if isinstance(k, tuple) and k[0] == 'S']
+    w8 = [k for k in used if isinstance(k, tuple) and k[0] == 'Q']
+    val32 = lambda k: G.q8[k[1]][3] if isinstance(k, tuple) else G.const[k]
     woff, top16 = {}, 0
     for t in w16:
         woff[t] = top16
@@ -737,19 +856,37 @@ def layout(G, P, kernels):
     top32 = 0 if OPT['f16'] else top16
     for t in w32:
         woff[t] = top32
-        top32 += prod(G.shape[t])
+        top32 += val32(t).size
+    top8 = 0
+    for k in w8:
+        woff[k] = top8
+        top8 += G.q8[k[1]][2].size
     blob16 = np.zeros(top16, np.float16)
     for t in w16:
         blob16[woff[t]:woff[t] + prod(G.shape[t])] = G.const[t].astype(np.float16).ravel()
-    blob32 = np.concatenate([G.const[t].astype(np.float32).ravel() for t in w32]) if w32 else np.zeros(0, np.float32)
+    blob32 = np.concatenate([val32(t).astype(np.float32).ravel() for t in w32]) if w32 else np.zeros(0, np.float32)
+    blob8 = np.zeros((top8 + 3) // 4 * 4, np.int8)
+    for k in w8:
+        blob8[woff[k]:woff[k] + G.q8[k[1]][2].size] = G.q8[k[1]][2].ravel()
     for t in w16:
         assert np.array_equal(G.const[t].astype(np.float16).astype(np.float32), G.const[t].astype(np.float32))
     params = []
     for _, slots, _, _ in kernels:
-        params.append([off[t] if kind == 'A' else woff[t] for kind, t in slots])
+        params.append([off[t] if kind == 'A' else woff[t if kind in 'WH' else (kind, t)] for kind, t in slots])
     top32 = top32 if OPT['f16'] else top32 - top16
     return dict(off=off, woff=woff, inputs=io, outputs=oio, in_words=in_words, out_start=out_start, out_words=out_words,
-                arena=peak, n16=top16, n32=top32, params=params), blob16, blob32
+                arena=peak, n16=top16, n32=top32, n8=blob8.size, params=params), blob16, blob32, blob8
+
+
+def write_int8_onnx(G, src, out):
+    """The ONNX graph with each int8 weight's fp16 initializer replaced by its dequantized values (fp32)."""
+    m = onnx.load(src)
+    casts = {n.output[0]: n.input[0] for n in m.graph.node if n.op_type == 'Cast'}
+    inits = {i.name: i for i in m.graph.initializer}
+    for t in G.q8:
+        name = casts[t] if casts.get(t) in inits else t
+        inits[name].CopyFrom(numpy_helper.from_array(G.const[t].astype(np.float32), name))
+    onnx.save(m, out)
 
 
 def main():
@@ -758,33 +895,45 @@ def main():
     ap.add_argument('--out', default=str(DOCS / 'play.wgr'))
     ap.add_argument('--f32', action='store_true', help='expand the fp16 weights to fp32 on the GPU at load')
     ap.add_argument('--tile', default='{}', help='json overrides of TILE, for experiments')
+    ap.add_argument('--int8', action='store_true', help='matmul and conv weights as int8 with fp32 scales (quantize())')
+    ap.add_argument('--group', type=int, default=0, help='--int8: one scale per this many inputs (0: per output channel)')
+    ap.add_argument('--int8-min', type=int, default=16384, help='--int8: smallest weight (elements) made int8')
+    ap.add_argument('--int8-onnx', help='--int8: also write the ONNX graph with these int8 weights as fp32 (what this '
+                                        'file computes; replay.py --onnx judges runs on it)')
     a = ap.parse_args()
     TILE.update({k: tuple(v) if isinstance(v, list) else v for k, v in json.loads(a.tile).items()})
-    OPT['f16'] = not a.f32
+    OPT.update(f16=not a.f32, group=a.group)
     G = Graph(a.onnx)
+    if a.int8:
+        G.mark_int8(a.group, a.int8_min)
+        if a.int8_onnx:
+            write_int8_onnx(G, a.onnx, a.int8_onnx)
     P, kernels = build(G)
-    L, b16, b32 = layout(G, P, kernels)
+    L, b16, b32, b8 = layout(G, P, kernels)
     shaders, sidx, disp = [], {}, []
     for (src, slots, wg, R), prm in zip(kernels, L['params']):
         if src not in sidx:
             sidx[src] = len(shaders)
             shaders.append(src)
         disp.append([sidx[src], *wg])
-    meta = dict(format='wgr1', f16=OPT['f16'], header=HEADER + (H16 if OPT['f16'] else ''), arena=L['arena'], n16=L['n16'], n32=L['n32'], inputs=L['inputs'],
+    meta = dict(format='wgr1', f16=OPT['f16'], header=HEADER + (H16 if OPT['f16'] else '') + (Q8 if L['n8'] else ''),
+                arena=L['arena'], n16=L['n16'], n32=L['n32'], **({'n8': L['n8']} if L['n8'] else {}), inputs=L['inputs'],
                 outputs=L['outputs'], in_words=L['in_words'], out_start=L['out_start'], out_words=L['out_words'],
                 shaders=shaders, dispatches=disp, params=L['params'], roots=[k[3] for k in kernels],
                 root_off=[L['off'][k[3]] for k in kernels])
     js = json.dumps(meta, separators=(',', ':')).encode()
     Path(a.out + '.json').write_bytes(js)
-    Path(a.out + '.bin').write_bytes(b16.tobytes() + b32.tobytes())
-    # one file for the browser: 'WGR1', u32 json bytes, json, zero padding to 4 bytes, fp16 weights, fp32 weights
+    Path(a.out + '.bin').write_bytes(b16.tobytes() + b32.tobytes() + b8.tobytes())
+    # one file for the browser: 'WGR1', u32 json bytes, json, zero padding to 4 bytes, fp16 weights, fp32 weights, and
+    # with --int8 the int8 weights (n8 bytes, a multiple of 4)
     js += b' ' * (-len(js) % 4)
-    Path(a.out).write_bytes(b'WGR1' + np.uint32(len(js)).tobytes() + js + b16.tobytes() + b32.tobytes())
+    Path(a.out).write_bytes(b'WGR1' + np.uint32(len(js)).tobytes() + js + b16.tobytes() + b32.tobytes() + b8.tobytes())
     ops = defaultdict(int)
     for k in kernels:
         ops[G.prod[k[3]].op_type if k[3] not in P.fused else G.prod[P.fused[k[3]]].op_type + '+epi'] += 1
     print(f'{len(G.nodes)} nodes -> {len(kernels)} dispatches, {len(shaders)} shaders; arena {L["arena"] * 4 / 1e6:.2f} MB; '
-          f'weights {L["n16"]} fp16 + {L["n32"]} fp32 -> blob {(b16.nbytes + b32.nbytes) / 1e6:.2f} MB, json '
+          f'weights {L["n16"]} fp16 + {L["n32"]} fp32 + {L["n8"]} int8 ({len(G.q8)} tensors) -> blob '
+          f'{(b16.nbytes + b32.nbytes + b8.nbytes) / 1e6:.2f} MB, json '
           f'{Path(a.out + ".json").stat().st_size / 1e6:.2f} MB, {a.out}: {Path(a.out).stat().st_size / 1e6:.2f} MB')
     print(dict(sorted(ops.items(), key=lambda x: -x[1])))
 

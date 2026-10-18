@@ -1,8 +1,9 @@
 // wgr.js: runs one static network converted by convert.py on WebGPU, in plain JS and WGSL (no wasm).
 // create() makes every GPU object once: one arena buffer for all tensors, the weights (fp16 ones stay fp16 and kernels read
-// them with unpack2x16float), one uniform buffer with each dispatch's tensor offsets, ~75 pipelines and a single bind
-// group. run() writes the inputs, records the ~1100 dispatches into one compute pass, copies the outputs out and maps
-// them: per step one command encoder, one pass, one command buffer, nothing else.
+// them with unpack2x16float; a convert_web.py --int8 file also has int8 ones, 4 to a u32, that kernels multiply by fp32
+// scales), one uniform buffer with each dispatch's tensor offsets, ~75 pipelines and a single bind group. run() writes
+// the inputs, records the ~1100 dispatches into one compute pass, copies the outputs out and maps them: per step one
+// command encoder, one pass, one command buffer, nothing else.
 
 const EXPAND = `@group(0) @binding(0) var<storage, read> R: array<u32>;
 @group(0) @binding(1) var<storage, read_write> W: array<f32>;
@@ -11,7 +12,7 @@ const EXPAND = `@group(0) @binding(0) var<storage, read> R: array<u32>;
   let v = unpack2x16float(R[i]); W[2u * i] = v.x; W[2u * i + 1u] = v.y;
 }`;
 
-export function parse(bytes) {  // 'WGR1', u32 json length, json (padded to 4 bytes), fp16 weights, fp32 weights
+export function parse(bytes) {  // 'WGR1', u32 json length, json (padded to 4 bytes), fp16 weights, fp32 weights, int8 weights
   const u8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
   if (String.fromCharCode(...u8.subarray(0, 4)) !== 'WGR1') throw new Error('not a wgr file');
   const n = new DataView(u8.buffer, u8.byteOffset + 4, 4).getUint32(0, true);
@@ -29,7 +30,9 @@ export async function create(device, bytes, { chunk = 1 << 22 } = {}) {
   const b16 = m.n16 * 2, wbase = m.f16 ? 0 : m.n16;
   const W = device.createBuffer({ size: Math.max(16, (wbase + m.n32) * 4), usage: U.STORAGE | U.COPY_DST });
   const H = m.f16 ? device.createBuffer({ size: Math.max(16, b16), usage: U.STORAGE | U.COPY_DST }) : null;
+  const n8 = m.n8 ?? 0, Q = n8 ? device.createBuffer({ size: n8, usage: U.STORAGE | U.COPY_DST }) : null;
   if (m.n32) device.queue.writeBuffer(W, wbase * 4, weights, b16, m.n32 * 4);
+  if (Q) device.queue.writeBuffer(Q, 0, weights, b16 + m.n32 * 4, n8);   // n8: bytes, a multiple of 4
   if (H) device.queue.writeBuffer(H, 0, weights, 0, b16);
   else if (b16) {
     const ex = device.createComputePipeline({ layout: 'auto', compute: { module: device.createShaderModule({ code: EXPAND }), entryPoint: 'main' } });
@@ -60,13 +63,15 @@ export async function create(device, bytes, { chunk = 1 << 22 } = {}) {
     { binding: 0, visibility: C, buffer: { type: 'read-only-storage' } },
     { binding: 1, visibility: C, buffer: { type: 'storage' } },
     { binding: 2, visibility: C, buffer: { type: 'uniform', hasDynamicOffset: true, minBindingSize: 256 } },
-    ...(H ? [{ binding: 3, visibility: C, buffer: { type: 'read-only-storage' } }] : [])] });
+    ...(H ? [{ binding: 3, visibility: C, buffer: { type: 'read-only-storage' } }] : []),
+    ...(Q ? [{ binding: 4, visibility: C, buffer: { type: 'read-only-storage' } }] : [])] });
   const layout = device.createPipelineLayout({ bindGroupLayouts: [bgl] });
   const pipes = await Promise.all(m.shaders.map(s => device.createComputePipelineAsync({ layout,
     compute: { module: device.createShaderModule({ code: m.header + s }), entryPoint: 'main' } })));
   const bg = device.createBindGroup({ layout: bgl, entries: [
     { binding: 0, resource: { buffer: W } }, { binding: 1, resource: { buffer: A } },
-    { binding: 2, resource: { buffer: P, offset: 0, size: 256 } }, ...(H ? [{ binding: 3, resource: { buffer: H } }] : [])] });
+    { binding: 2, resource: { buffer: P, offset: 0, size: 256 } }, ...(H ? [{ binding: 3, resource: { buffer: H } }] : []),
+    ...(Q ? [{ binding: 4, resource: { buffer: Q } }] : [])] });
   const dyn = new Uint32Array(n).map((_, i) => i * 256);
   const disp = m.dispatches.map(([s, x, y, z]) => [pipes[s], x, y, z]);
   const staging = new Float32Array(m.in_words);
@@ -100,6 +105,7 @@ export async function create(device, bytes, { chunk = 1 << 22 } = {}) {
   }
   let queue = Promise.resolve();   // calls run one after another (they share the arena and the read buffer)
   const run = x => (queue = queue.then(() => step(x), () => step(x)));   // x: the ONNX inputs as typed arrays
-  return { run, meta: m, dispatches: n, pipelines: pipes.length, arenaBytes: A.size, weightBytes: W.size + (H?.size ?? 0),
-    destroy() { A.destroy(); W.destroy(); H?.destroy(); P.destroy(); read.destroy(); } };
+  return { run, meta: m, dispatches: n, pipelines: pipes.length, arenaBytes: A.size,
+    weightBytes: W.size + (H?.size ?? 0) + (Q?.size ?? 0),
+    destroy() { A.destroy(); W.destroy(); H?.destroy(); Q?.destroy(); P.destroy(); read.destroy(); } };
 }
