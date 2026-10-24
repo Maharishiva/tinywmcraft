@@ -16,5 +16,5 @@ Training seeds 0, 1 and 2, the three rows `eval.py` appended to `ledger.jsonl`:
 ## Checklist
 
 - [ ] `eval.py` and the data are unchanged
-- [ ] every training run took at most 600 s cold (`train_s`) and every eval at most 180 s (`eval_s`)
+- [ ] every training run took at most 600 s cold (`train_s`) and every eval at most 300 s (`eval_s`)
 - [ ] the change lives in `train.py`, `kernels.py`, or files they import

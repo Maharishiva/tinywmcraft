@@ -49,29 +49,32 @@ Every diamond clip and the best glitches go up on the site with your handle.
 </p>
 
 **13.9M parameters** (5.2M tokenizer, 8.6M world model), trained on [500k transitions][HF_DATASET] of Craftax-Classic pixels and keys,
-played by RL agents of mixed skill, some of them all the way to iron tools and diamonds.
+played by RL agents that reach diamonds, die in every way the game allows, break their own crafting habits and walk back to places they saw before ([dataset](#dataset)).
 No game state, tile labels or pretrained features enter the model.
-**One training run is under 10 minutes on one A100, about $0.1 of compute; the eval takes 2 to 3 minutes more.**
+**One training run is under 10 minutes on one A100, about $0.1 of compute; the eval takes about 3 minutes more.**
 
 | file | what it is |
 |---|---|
 | [train.py](train.py) | iteration 3, the one to beat: tokenizer and flow-matching world model with reward and termination heads |
 | [kernels.py](kernels.py) | fused Pallas kernels for attention, norms and activations on NVIDIA GPUs |
 | [eval.py](eval.py) | the frozen benchmark |
+| [make_eval.py](make_eval.py) | builds the eval clips from held-out play |
+| [collect/](collect/) | the data collector: agents, the behaviour schedule, return trips and the packer |
 | [play_wm.py](play_wm.py) | play inside a trained model with your keyboard |
 | [train_tiny.py](train_tiny.py) | iteration 1, the whole model on one page: about 250 lines, no custom kernels |
 | [program.md](program.md) | rules, the model interface, and how to submit, for people and for coding agents |
 
 ## Benchmark
 
-| # | change | gFVD ↓ | AF ↑ | reward AP ↑ | done AP ↑ | train s | code | checkpoints |
-|---|---|---:|---:|---:|---:|---:|---|---|
-| 1 | [train_tiny.py](train_tiny.py): the whole model in one file, no custom kernels | 56.9 ± 5.4 | 0.919 | 0.925 | 0.043 | 561 | [89e3539](https://github.com/Maharishiva/tinywmcraft/blob/89e3539/train_tiny.py) | [iteration1](https://huggingface.co/maharishiva/tinywmcraft/tree/main/iteration1) |
-| 2 | tile transformer tokenizer, fused Pallas kernels, hard-window mining, symlog reward head | 50.7 ± 5.1 | 0.930 | 0.942 | 0.050 | 588 | [80b1c34](https://github.com/Maharishiva/tinywmcraft/blob/80b1c34/train.py) | [iteration2](https://huggingface.co/maharishiva/tinywmcraft/tree/main/iteration2) |
-| 3 | [train.py](train.py): NorMuon, a two-frame tokenizer, shortcut and temporal losses, training on its own context, cached sampling | 42.5 ± 2.1 | 0.934 | 0.913 | 0.027 | 572 | [89e3539](https://github.com/Maharishiva/tinywmcraft/blob/89e3539/train.py) | [iteration3](https://huggingface.co/maharishiva/tinywmcraft/tree/main/iteration3) |
+| # | change | score ↑ | gFVD ↓ | AF ↑ | logic ↑ | memory ↑ | reward AP ↑ | train s | code | checkpoints |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---|---|
+| 1 | [train_tiny.py](train_tiny.py): the whole model in one file, no custom kernels | 0.422 ± 0.025 | 37.6 | 0.906 | 0.05 | 0.087 | 0.923 | 558 | [89e3539](https://github.com/Maharishiva/tinywmcraft/blob/89e3539/train_tiny.py) | TBD |
+| 2 | tile transformer tokenizer, fused Pallas kernels, hard-window mining, symlog reward head | 0.571 ± 0.015 | 33.1 | 0.900 | 0.59 | 0.109 | 0.936 | 584 | [80b1c34](https://github.com/Maharishiva/tinywmcraft/blob/80b1c34/train.py) | TBD |
+| 3 | [train.py](train.py): NorMuon, a two-frame tokenizer, shortcut and temporal losses, training on its own context, cached sampling | 0.602 ± 0.005 | 25.9 | 0.898 | 0.62 | 0.107 | 0.897 | 568 | [89e3539](https://github.com/Maharishiva/tinywmcraft/blob/89e3539/train.py) | TBD |
 
-Three snapshots of our own research so far. gFVD over all 64 generated frames, shown times 10^4.
-Mean ± sample SD over training seeds 0, 1 and 2, each trained cold on one Colab A100-SXM4-40GB and scored by `eval.py`; train s is the slowest seed.
+Three snapshots of our own research so far, each retrained on the benchmark v3 data. Score: the north star, 0 for a trivial model and 1 for the real game ([evaluation](#evaluation)); gFVD shown times 10^4.
+Mean ± sample SD over training seeds 0, 1 and 2, each trained cold on one Colab A100-SXM4-40GB and scored by `eval.py` on the public eval clips; train s is the slowest seed.
+The benchmark v2 table (old data, ranked on gFVD) stays on the site.
 Beat iteration 3 and yours is iteration 4: the crown goes next to your GitHub login, and the browser player switches to your model. How: [program.md](program.md). The same table on the site, with the score over time: [benchmark](https://maharishiva.github.io/tinywmcraft/benchmark.html).
 
 ## Quickstart
@@ -94,16 +97,16 @@ HF_DATASET=https://huggingface.co/datasets/maharishiva/tinywmcraft
 curl -L --fail --create-dirs -o data/train.npz $HF_DATASET/resolve/main/train.npz
 curl -L --fail -o data/eval.npz $HF_DATASET/resolve/main/eval.npz
 python train.py --data data/train.npz --out runs/base/model.npz --seed 0   # under 600 s on one A100, compilation included
-python eval.py  --model runs/base/model.npz --tag base --gif               # 2 to 3 minutes, appends to ledger.jsonl
+python eval.py  --model runs/base/model.npz --tag base --gif               # about 3 minutes, appends to ledger.jsonl
 ```
 
 ## Rules
 
 - **Data:** train only on [`train.npz`][HF_DATASET], at most 500k transitions. No other data, no pretrained weights.
 - **Compute:** at most 600 s per training run on one A100 40GB, everything included, with no persistent compilation cache.
-- **Evaluator:** `eval.py` stays byte-identical and its timed part (`eval_s`: importing and loading your model, compiling, generating) takes at most 180 s on the same GPU. Any model and any sampler, as long as it generates one frame per action without seeing future actions.
+- **Evaluator:** `eval.py` stays byte-identical and its timed part (`eval_s`: importing and loading your model, compiling, generating) takes at most 300 s on the same GPU. Any model, any sampler and any context length, as long as it generates one frame per action without seeing future actions.
 - **Seeds:** report training seeds 0, 1 and 2.
-- **Gates:** the mean gFVD beats the best by a noise-aware margin; AF and reward AP stay above fixed floors, 95% of iteration 1; done AP is reported, not gated (deaths are rare: 142 clips). Ranked on gFVD alone.
+- **Gates:** the mean score beats the best by a noise-aware margin; reward AP stays above a fixed floor, 95% of iteration 1; done AP is reported, not gated. Ranked on the score alone, measured on a private test set built the same way from other worlds.
 
 Details, the model interface and how to submit: [program.md](program.md).
 
@@ -117,14 +120,31 @@ Details, the model interface and how to submit: [program.md](program.md).
 - **Kernels.** At width 256 the step is bound by memory traffic, so attention, modulated norms, gated residuals and GELU run as fused Pallas kernels on NVIDIA GPUs and fall back to XLA elsewhere.
 - **Sampling.** Spatial attention stays within a frame and temporal attention is causal, so the past frames' keys and values are computed once per new frame and each Euler step runs only the new frame. The browser player does the same: about 7 GFLOP per keypress on WebGPU.
 
+## Dataset
+
+[`train.npz`][HF_DATASET] holds 500k transitions (250 streams of 2000 steps) of 63×63 frames, actions, rewards and episode ends.
+A world model learns the habits of the agents that made its data as if they were rules of the game: earlier models made a sword when asked for an iron pickaxe because the sword always came first, and made iron tools whenever the last action was place furnace.
+So four RL agents play (a pixel PPO agent fine-tuned for diamonds drives most episodes), and a behaviour schedule makes their play more varied:
+
+- **Counterexamples to shortcuts:** iron pickaxes made with no sword, crafts at an old furnace, presses that fail (no table, no furnace, a missing ingredient, the wrong pickaxe), repeat placements.
+- **Deaths of every kind:** zombies, skeletons, lava, thirst, starvation and exhaustion.
+- **Return trips** for memory: walks out and back to places seen a few to a few hundred frames before, half of them led by a learned goal-conditioned walker.
+- **Diamonds:** at least 200, counting only the first one in an episode.
+
+Pieces are cut only at quiet moments, never on a reward or an inventory change, and chosen so that events, not frames, are balanced. The code is in [collect/](collect/).
+
 ## Evaluation
 
-The frozen evaluator scores 2048 clips from held-out episodes. Eight real frames prime the model, then it generates 64 frames open-loop from the recorded keys, one keypress at a time.
-512 of the clips hold a rare event early on: a diamond, an iron pickaxe or sword, eating a plant, or a death in lava or by a zombie or skeleton.
+The frozen evaluator scores clips of held-out play from other worlds, built by [make_eval.py](make_eval.py). Every clip starts with eight real frames; then the model generates one frame per recorded action.
+Probes read the generated frames with the game's own textures: HUD digits, map cells, the sleep tint.
 
-- **gFVD ↓** (the headline): Fréchet distance between real and generated clips over all 64 generated frames, in a fixed random CNN's feature space, times 10^4. It needs no external checkpoint and is not comparable to I3D FVD.
-- **AF ↑:** action following, the share of clips where the true keys predict the salient pixels better than random keys under the same context. A model that ignores the keys scores 0.5.
+- **Play:** 2048 clips of 64 actions, 512 of them with a rare event early on (a diamond, an iron tool, eating a plant, a death). **gFVD ↓** is the Fréchet distance between real and generated frames in a fixed random CNN's feature space, times 10^4 (not comparable to I3D FVD). **AF ↑**, action following, is the share of clips where the true actions predict the salient pixels better than random actions; a model that ignores the actions scores 0.5.
+- **Logic ↑:** eight scripted actions from a real state next to something to use, in seven families: chop, mine, drink, eat, place, craft, sleep, with and without the right tool, table, furnace or ingredients, crafts in any order. A case passes if the HUD and the target cell match the real game on all eight frames. Per family, the pass rate where the game changed something plus the pass rate where it did not, minus 1.
+- **Memory ↑:** walks out and back (48 and 144 actions). Map cells seen in the context come back into view; recall is the share drawn as the real block, scored as a gain over drawing a random block of the last context frame, in gap buckets from 4-7 to 64+ frames.
+- **Score ↑** (the headline): the mean of four parts, each clipped to [0, 1]. gFVD on a log scale from copying the last frame (170, scores 0) to the real game replayed with fresh randomness (14, scores 1); AF from blind (0.5) to the replayed game (0.93); logic; memory. Copying the last frame, shuffling its tiles or ignoring the actions all score 0.
 - **reward AP ↑ and done AP ↑:** average precision of the reward and episode-end heads on real transitions.
+
+A private test set, built the same way from other worlds, judges submissions; the public `eval.npz` is for development.
 
 <p align="center">
   <img src="docs/assets/demo.gif" alt="Real frames beside imagined frames" width="760">
