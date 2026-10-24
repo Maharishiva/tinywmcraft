@@ -3,7 +3,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>tinywmcraft benchmark: beat the best world model in one 10-minute A100 run</title>
-<meta name="description" content="The tinywmcraft benchmark: train a world model of Craftax-Classic in 600 s on one A100 and beat the best gFVD. Score over time, every entry, the rules and the metrics.">
+<meta name="description" content="The tinywmcraft benchmark: train a world model of Craftax-Classic in 600 s on one A100 and beat the best score: looks, action following, game logic and memory. Score over time, every entry, the rules and the metrics.">
 <meta name="theme-color" content="#0a0a0a">
 <meta name="color-scheme" content="dark">
 <link rel="canonical" href="https://maharishiva.github.io/tinywmcraft/benchmark.html">
@@ -12,7 +12,7 @@
 <meta property="og:site_name" content="tinywmcraft">
 <meta property="og:url" content="https://maharishiva.github.io/tinywmcraft/benchmark.html">
 <meta property="og:title" content="tinywmcraft benchmark: beat the best world model in one 10-minute A100 run">
-<meta property="og:description" content="Train a world model of Craftax-Classic in 600 s on one A100 and beat the best gFVD.">
+<meta property="og:description" content="Train a world model of Craftax-Classic in 600 s on one A100 and beat the best score.">
 <meta property="og:image" content="https://maharishiva.github.io/tinywmcraft/assets/card.png">
 <meta name="twitter:card" content="summary_large_image">
 <style>
@@ -93,20 +93,20 @@ footer { color:var(--dim); font-size:12px; margin-top:52px; padding-top:14px; bo
 <a class="gh" href="https://github.com/Maharishiva/tinywmcraft"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg><span>GitHub</span></a>
 <a href="./"><img class="logo" src="assets/logo-dark.png" alt="tinywmcraft" width="2140" height="360"></a>
 <h1>Beat the best <span class="o">world model</span> in one 10-minute A100 run</h1>
-<p class="sub">Train a world model of Craftax-Classic on 500k frames in 600 s on one A100, score it with the frozen <code>eval.py</code>, and take the crown. Lower gFVD wins.</p>
+<p class="sub">Train a world model of Craftax-Classic on 500k frames in 600 s on one A100, score it with the frozen <code>eval.py</code>, and take the crown. The higher score wins.</p>
 <nav class="links"><a class="back" href="./#play">play the best model</a><a href="#rules">rules</a><a href="#eval">metrics</a><a href="#submit">how to submit</a></nav>
 </header>
 
 <h2 id="progress">score over time</h2>
-<svg id="chart" role="img" aria-label="gFVD of each iteration"></svg>
-<p class="note">Each point is one iteration; it links to its code. Lower is better.</p>
+<svg id="chart" role="img" aria-label="score of each iteration"></svg>
+<p class="note">Each point is one iteration; it links to its code. Higher is better.</p>
 
 <h2 id="leaderboard">leaderboard</h2>
 <div class="scroll"><table id="lb">
-<thead><tr><th class="n">#</th><th>author</th><th>change</th><th class="n">gFVD ↓</th><th class="n">AF ↑</th><th class="n">reward<br>AP ↑</th><th class="n">done<br>AP ↑</th><th class="n">train s</th><th>code</th><th>weights</th></tr></thead>
-<tbody><tr><td colspan="10">loading records.jsonl…</td></tr></tbody>
+<thead><tr><th class="n">#</th><th>author</th><th>change</th><th class="n">score ↑</th><th class="n">gFVD ↓</th><th class="n">AF ↑</th><th class="n">logic ↑</th><th class="n">memory ↑</th><th class="n">reward<br>AP ↑</th><th class="n">train s</th><th>code</th><th>weights</th></tr></thead>
+<tbody><tr><td colspan="11">loading records.jsonl…</td></tr></tbody>
 </table></div>
-<p class="note">Best first. gFVD over all 64 generated frames, shown ×10⁴. Mean ± sample SD over training seeds 0, 1 and 2, each trained cold on one Colab A100 and scored by eval.py. Train s is the slowest seed. Data: <a href="records.jsonl">records.jsonl</a>.</p>
+<p class="note">Best first. Score: 0 for a trivial model, 1 for the real game. Mean ± sample SD over training seeds 0, 1 and 2, each trained cold on one Colab A100 on the v3 data and scored by eval.py; gFVD shown ×10⁴. Train s is the slowest seed. Data: <a href="records.jsonl">records.jsonl</a>; the benchmark v2 table (old data, ranked on gFVD): <a href="records_v2.jsonl">records_v2.jsonl</a>.</p>
 
 <h2 id="beat">beat it</h2>
 <p>Beat the best and yours is the next iteration: the crown goes next to your GitHub login, and the player on the <a href="./#play">home page</a> switches to your model. Hand it to your coding agent:</p>
@@ -117,24 +117,27 @@ footer { color:var(--dim); font-size:12px; margin-top:52px; padding-top:14px; bo
 <p>Or do it by hand: <a href="https://github.com/Maharishiva/tinywmcraft/blob/main/program.md">program.md</a> has the loop, the rules and the model interface, written for people and for coding agents.</p>
 
 <h2 id="rules">the rules</h2>
-<p>Beat the best gFVD in one 600-second A100 run.</p>
+<p>Beat the best score in one 600-second A100 run.</p>
 <dl class="rules">
 <dt>data</dt><dd><a data-dataset href="#"><code>train.npz</code></a> on Hugging Face, 500k transitions. Nothing else, no pretrained weights.</dd>
 <dt>compute</dt><dd>600 s on one A100 40GB, everything included: tokenizer, data loading, compilation. No compile cache.</dd>
-<dt>eval</dt><dd><code>eval.py</code> is frozen. Loading your model, compiling and generating 2048 clips of 64 frames must take at most 180 s on the maintainer's Colab A100. Any model and any sampler.</dd>
+<dt>eval</dt><dd><code>eval.py</code> is frozen. Loading your model, compiling and generating every clip must take at most 300 s on the maintainer's Colab A100 (iteration 3: about 170 s). Any model, any sampler, any context length.</dd>
 <dt>frames</dt><dd>One frame per action: the model never sees future actions or frames.</dd>
 <dt>seeds</dt><dd>The score is the mean over training seeds 0, 1 and 2.</dd>
-<dt>gates</dt><dd>Ranked on gFVD alone, checked in the maintainer's rerun on the same machine and seeds.</dd>
+<dt>gates</dt><dd>Ranked on the score alone, checked in the maintainer's rerun on the same machine and seeds, on a private test set built the same way from other worlds.</dd>
 </dl>
-<p>gFVD must beat the best mean by a noise-aware margin, where sd is the sample SD over the three seeds:</p>
-<p class="formula">best − new &gt; 1.65 · √((sd_best² + sd_new²) / 3)</p>
-<p>AF and reward AP must stay at or above fixed floors, 95% of iteration 1: <b>AF ≥ 0.873</b>, <b>reward AP ≥ 0.879</b>. The floors do not move when the best changes. Done AP is reported, not gated: deaths are rare (142 of the 2048 clips), so it is too noisy to gate on.</p>
+<p>The score must beat the best mean by a noise-aware margin, where sd is the sample SD over the three seeds:</p>
+<p class="formula">new − best &gt; 1.65 · √((sd_best² + sd_new²) / 3)</p>
+<p>Reward AP must stay at or above a fixed floor, 95% of iteration 1: <b>reward AP ≥ 0.877</b>. The floor does not move when the best changes. Done AP is reported, not gated.</p>
 
 <h2 id="eval">evaluation</h2>
-<p>The frozen evaluator scores 2048 clips from held-out episodes. Eight real frames prime the model, then it generates 64 frames open-loop from the recorded keys, one keypress at a time. 512 of the clips hold a rare event early on: a diamond, an iron pickaxe or sword, eating a plant, or a death in lava or by a zombie or skeleton. The eval takes 2 to 3 minutes on one A100.</p>
+<p>The frozen evaluator scores clips of held-out play from other worlds. Eight real frames prime the model, then it generates one frame per recorded action. Probes read the generated frames with the game's own textures: HUD digits, map cells, the sleep tint. The eval takes about 3 minutes on one A100.</p>
 <dl class="metrics">
-<dt><b>gFVD ↓</b> (×10⁴)</dt><dd>The headline: the Fréchet distance between real and generated clips over all 64 generated frames, in the feature space of a fixed random CNN. It needs no external checkpoint and is not comparable to I3D FVD.</dd>
-<dt><b>AF ↑</b></dt><dd>Action following: the share of clips where the true keys predict the salient pixels better than random keys, under the same context and noise. A model that ignores the keys scores 0.5.</dd>
+<dt><b>score ↑</b></dt><dd>The headline: the mean of four parts, each clipped to [0, 1]: gFVD on a log scale from copying the last frame (170, scores 0) to the real game replayed with fresh randomness (14, scores 1); AF from blind (0.5) to the replayed game (0.93); logic; memory. Copying the last frame, shuffling its tiles or ignoring the actions all score 0.</dd>
+<dt><b>logic ↑</b></dt><dd>Eight scripted actions from a real state next to something to use: chop, mine, drink, eat, place, craft, sleep, with and without the right tool, table, furnace or ingredients, crafts in any order. Per family, the pass rate where the game changed something plus the pass rate where it did not, minus 1.</dd>
+<dt><b>memory ↑</b></dt><dd>Walks out and back: map cells seen before come back into view. Recall is scored as a gain over drawing a random block of the last context frame, in gap buckets from 4-7 to 64+ frames. Every model so far is at chance past 16 frames.</dd>
+<dt><b>gFVD ↓</b> (×10⁴)</dt><dd>The Fréchet distance between real and generated clips over all 64 generated frames, in the feature space of a fixed random CNN. It needs no external checkpoint and is not comparable to I3D FVD.</dd>
+<dt><b>AF ↑</b></dt><dd>Action following: the share of clips where the true actions predict the salient pixels better than random actions, under the same context and noise. A model that ignores the actions scores 0.5.</dd>
 <dt><b>reward AP ↑</b> and <b>done AP ↑</b></dt><dd>The average precision of the reward and episode-end heads on real transitions.</dd>
 </dl>
 <figure><img class="px" src="assets/demo.gif" alt="Real frames beside imagined frames for four held-out episodes" width="774" height="438" loading="lazy"><figcaption>Four held-out episodes, primed with 5 / 15 / 30 / 90 real frames, then 32 imagined frames. Ground truth left, world model right, same actions.</figcaption></figure>
@@ -147,10 +150,10 @@ footer { color:var(--dim); font-size:12px; margin-top:52px; padding-top:14px; bo
 </ol>
 <nav class="links"><a class="back" href="./#play">play the best model</a><a href="https://github.com/Maharishiva/tinywmcraft/blob/main/program.md">program.md</a><a href="model.html">inside the model</a></nav>
 
-<footer>MIT license · <a href="./">play</a> · <a href="https://github.com/Maharishiva/tinywmcraft">github</a> · <a href="model.html">inside the model</a> · <a href="https://huggingface.co/maharishiva/tinywmcraft">checkpoints</a> · <a data-dataset href="#">dataset</a></footer>
+<footer>MIT license · <a href="./">play</a> · <a href="https://github.com/Maharishiva/tinywmcraft">github</a> · <a href="model.html">inside the model</a> · <a href="https://huggingface.co/maharishiva/tinywmcraft-v3">checkpoints</a> · <a data-dataset href="#">dataset</a></footer>
 </main>
 <script>
-const HF_DATASET = "https://huggingface.co/datasets/maharishiva/tinywmcraft";   // the dataset repo, behind every "dataset" link
+const HF_DATASET = "https://huggingface.co/datasets/maharishiva/tinywmcraft-v3";   // the dataset repo, behind every "dataset" link
 const $ = s => document.querySelector(s);
 for (const el of document.querySelectorAll("a[data-dataset]")) el.href = HF_DATASET;
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
@@ -161,34 +164,34 @@ const linkName = u => (u.match(/\/pull\/(\d+)/) || [])[1] ? "#" + u.match(/\/pul
 const a = (u, text) => url(u) ? `<a href="${url(u)}">${esc(text)}</a>` : u ? esc(u) : "–";
 const CROWN = '<img class="crown" src="icons/crown.png" alt="crown" onerror="this.remove()">';
 
-function table(rows) {  // best gFVD first, the best one in orange with the crown
-  const ranked = [...rows].sort((p, q) => (num(p.gFVD) ? p.gFVD : Infinity) - (num(q.gFVD) ? q.gFVD : Infinity));
+function table(rows) {  // best score first, the best one in orange with the crown
+  const ranked = [...rows].sort((p, q) => (num(q.score) ? q.score : -Infinity) - (num(p.score) ? p.score : -Infinity));
   const top = ranked[0];
   $("#lb tbody").innerHTML = ranked.map(r => `<tr class="${r === top ? "rec" : ""}">
 <td class="n" data-l="#">${r.n}</td><td class="m">${r === top ? CROWN : ""}${a("https://github.com/" + encodeURIComponent(r.author || ""), r.author)}</td>
-<td class="ch">${esc(r.change)}</td><td class="n"><span class="g">${fx(r.gFVD, 1)}</span>${num(r.gFVD_sd) ? ` <span class="sd">± ${fx(r.gFVD_sd, 1)}</span>` : ""}</td>
-<td class="n" data-l="AF ">${fx(r.AF, 3)}</td><td class="n" data-l="reward AP ">${fx(r.reward_ap, 3)}</td><td class="n" data-l="done AP ">${fx(r.done_ap, 3)}</td><td class="n m" data-l="train s ">${fx(r.train_s, 0)}</td>
+<td class="ch">${esc(r.change)}</td><td class="n"><span class="g">${fx(r.score, 3)}</span>${num(r.score_sd) ? ` <span class="sd">± ${fx(r.score_sd, 3)}</span>` : ""}</td>
+<td class="n" data-l="gFVD ">${fx(r.gFVD, 1)}</td><td class="n" data-l="AF ">${fx(r.AF, 3)}</td><td class="n" data-l="logic ">${fx(r.logic, 2)}</td><td class="n" data-l="memory ">${fx(r.memory, 3)}</td><td class="n" data-l="reward AP ">${fx(r.reward_ap, 3)}</td><td class="n m" data-l="train s ">${fx(r.train_s, 0)}</td>
 <td class="m">${a(r.code, linkName(r.code || ""))}</td><td class="m">${a(r.checkpoints, "hf")}</td></tr>`).join("");
 }
 
-function chart(rows) {  // the gFVD of each iteration with a number, in order; each point links to its code
-  const svg = $("#chart"), recs = rows.filter(r => num(r.gFVD));
+function chart(rows) {  // the score of each iteration with a number, in order; each point links to its code
+  const svg = $("#chart"), recs = rows.filter(r => num(r.score));
   svg.style.display = recs.length ? "" : "none";
   if (!recs.length) return;
   const W = svg.clientWidth, H = 170, L = 30, R = 46, T = 12, B = 24;
   const gap = Math.min(180, (W - L - R - 60) / Math.max(recs.length - 1, 1)), X = i => L + 30 + i * gap;
-  const vs = recs.map(r => r.gFVD), lo = Math.min(...vs), hi = Math.max(...vs), pad = Math.max((hi - lo) * .2, lo * .1);
+  const vs = recs.map(r => r.score), lo = Math.min(...vs), hi = Math.max(...vs), pad = Math.max((hi - lo) * .2, lo * .1);
   const y0 = lo - pad, y1 = hi + pad, Y = v => T + (y1 - v) / (y1 - y0) * (H - T - B);
   const m = 10 ** Math.floor(Math.log10((y1 - y0) / 3)), step = [1, 2, 5, 10].map(k => k * m).find(k => k >= (y1 - y0) / 3);
   const date = d => new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
   let s = "";
   for (let v = Math.ceil(y0 / step) * step; v <= y1; v += step)
     s += `<line class="grid" x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}"/><text class="axis" x="${L - 6}" y="${Y(v) + 4}" text-anchor="end">${+v.toFixed(3)}</text>`;
-  s += `<path class="step" d="M${recs.map((r, i) => (i ? `H${X(i)}V` : `${X(i)},`) + Y(r.gFVD)).join("")}H${W - R}"/>`;
-  s += `<text class="val" x="${W - R + 6}" y="${Y(recs.at(-1).gFVD) + 4}">${fx(recs.at(-1).gFVD, 1)}</text>`;
+  s += `<path class="step" d="M${recs.map((r, i) => (i ? `H${X(i)}V` : `${X(i)},`) + Y(r.score)).join("")}H${W - R}"/>`;
+  s += `<text class="val" x="${W - R + 6}" y="${Y(recs.at(-1).score) + 4}">${fx(recs.at(-1).score, 3)}</text>`;
   s += recs.map((r, i) => `<text class="axis" x="${X(i)}" y="${H - 6}" text-anchor="middle">#${r.n}${isNaN(Date.parse(r.date)) ? "" : " · " + date(r.date)}</text>` +
-    `<a href="${url(r.code) || "#"}"><circle class="pt" cx="${X(i)}" cy="${Y(r.gFVD)}" r="5"/><circle class="hit" cx="${X(i)}" cy="${Y(r.gFVD)}" r="14">` +
-    `<title>#${r.n}  gFVD ${fx(r.gFVD, 1)} ± ${fx(r.gFVD_sd, 1)}  ${esc(r.change)}</title></circle></a>`).join("");
+    `<a href="${url(r.code) || "#"}"><circle class="pt" cx="${X(i)}" cy="${Y(r.score)}" r="5"/><circle class="hit" cx="${X(i)}" cy="${Y(r.score)}" r="14">` +
+    `<title>#${r.n}  score ${fx(r.score, 3)} ± ${fx(r.score_sd, 3)}  ${esc(r.change)}</title></circle></a>`).join("");
   svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
   svg.innerHTML = s;
 }
@@ -197,7 +200,7 @@ fetch("records.jsonl").then(r => r.ok ? r.text() : Promise.reject(r.status)).the
   const rows = text.split("\n").filter(l => l.trim()).map(l => JSON.parse(l)).sort((p, q) => p.n - q.n);
   table(rows); chart(rows);
   addEventListener("resize", () => chart(rows));
-}).catch(() => { $("#lb tbody").innerHTML = `<tr><td colspan="10">Could not load <a href="records.jsonl">records.jsonl</a>.</td></tr>`; });
+}).catch(() => { $("#lb tbody").innerHTML = `<tr><td colspan="11">Could not load <a href="records.jsonl">records.jsonl</a>.</td></tr>`; });
 
 $("#copy").addEventListener("click", async e => {  // the prompt to the clipboard; a selection where the clipboard is blocked
   const text = $("#prompt").textContent.trim(), btn = e.currentTarget;

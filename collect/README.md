@@ -10,7 +10,7 @@ python collect/collect.py pool --out data/eval --seed 7101 --worlds 256 --steps 
 python collect/collect.py pack --pools data/pool0 data/pool1 --out data                     # train.npz
 ```
 
-`--policies` is a folder with the four checkpoints named in `POLICIES`.
+`--policies` is a folder with the four checkpoints named in `POLICIES`, from [policies/](https://huggingface.co/maharishiva/tinywmcraft-v3/tree/main/policies) on Hugging Face.
 
 ## Who plays
 

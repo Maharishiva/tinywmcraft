@@ -8,7 +8,7 @@ Every iteration is on the [benchmark](https://maharishiva.github.io/tinywmcraft/
 
 ## Rules
 
-- **Data.** Train only on [`train.npz`](https://huggingface.co/datasets/maharishiva/tinywmcraft) (in `data/`), at most 500k transitions. No other data, no pretrained weights.
+- **Data.** Train only on [`train.npz`](https://huggingface.co/datasets/maharishiva/tinywmcraft-v3) (in `data/`), at most 500k transitions. No other data, no pretrained weights.
 - **Training.** At most 600 s per run on one A100 40GB: data loading, tokenizer, compilation, everything. No persistent compilation cache. `train.py` stores its own wall clock as `train_s` in the checkpoint.
 - **Evaluation.** `eval.py` stays byte-identical to `main`. Its `eval_s`, timed from importing your module to the last metric (model loading and compilation count, reading `eval.npz` does not), is at most 300 s on the same GPU; iteration 3 takes about 170 s. Anything else about generation is yours: the model family, the sampler, the number of steps, how much of the past the model keeps.
 - **One frame per action.** The model generates frame by frame and never sees future actions or frames. The interface below hands it one action at a time; reading the eval data, caching frames across calls or other tricks around it are against the rules and checked in review.

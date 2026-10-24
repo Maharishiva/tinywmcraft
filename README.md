@@ -12,7 +12,7 @@
 [**Play it in your browser**](https://maharishiva.github.io/tinywmcraft/#play) ·
 [Benchmark](#benchmark) ·
 [How to beat it](program.md) ·
-[Checkpoints](https://huggingface.co/maharishiva/tinywmcraft) ·
+[Checkpoints](https://huggingface.co/maharishiva/tinywmcraft-v3) ·
 [Dataset][HF_DATASET]
 
 </div>
@@ -68,9 +68,9 @@ No game state, tile labels or pretrained features enter the model.
 
 | # | change | score ↑ | gFVD ↓ | AF ↑ | logic ↑ | memory ↑ | reward AP ↑ | train s | code | checkpoints |
 |---|---|---:|---:|---:|---:|---:|---:|---:|---|---|
-| 1 | [train_tiny.py](train_tiny.py): the whole model in one file, no custom kernels | 0.422 ± 0.025 | 37.6 | 0.906 | 0.05 | 0.087 | 0.923 | 558 | [89e3539](https://github.com/Maharishiva/tinywmcraft/blob/89e3539/train_tiny.py) | TBD |
-| 2 | tile transformer tokenizer, fused Pallas kernels, hard-window mining, symlog reward head | 0.571 ± 0.015 | 33.1 | 0.900 | 0.59 | 0.109 | 0.936 | 584 | [80b1c34](https://github.com/Maharishiva/tinywmcraft/blob/80b1c34/train.py) | TBD |
-| 3 | [train.py](train.py): NorMuon, a two-frame tokenizer, shortcut and temporal losses, training on its own context, cached sampling | 0.602 ± 0.005 | 25.9 | 0.898 | 0.62 | 0.107 | 0.897 | 568 | [89e3539](https://github.com/Maharishiva/tinywmcraft/blob/89e3539/train.py) | TBD |
+| 1 | [train_tiny.py](train_tiny.py): the whole model in one file, no custom kernels | 0.422 ± 0.025 | 37.6 | 0.906 | 0.05 | 0.087 | 0.923 | 558 | [89e3539](https://github.com/Maharishiva/tinywmcraft/blob/89e3539/train_tiny.py) | [iteration1](https://huggingface.co/maharishiva/tinywmcraft-v3/tree/main/iteration1) |
+| 2 | tile transformer tokenizer, fused Pallas kernels, hard-window mining, symlog reward head | 0.571 ± 0.015 | 33.1 | 0.900 | 0.59 | 0.109 | 0.936 | 584 | [80b1c34](https://github.com/Maharishiva/tinywmcraft/blob/80b1c34/train.py) | [iteration2](https://huggingface.co/maharishiva/tinywmcraft-v3/tree/main/iteration2) |
+| 3 | [train.py](train.py): NorMuon, a two-frame tokenizer, shortcut and temporal losses, training on its own context, cached sampling | 0.602 ± 0.005 | 25.9 | 0.898 | 0.62 | 0.107 | 0.897 | 568 | [89e3539](https://github.com/Maharishiva/tinywmcraft/blob/89e3539/train.py) | [iteration3](https://huggingface.co/maharishiva/tinywmcraft-v3/tree/main/iteration3) |
 
 Three snapshots of our own research so far, each retrained on the benchmark v3 data. Score: the north star, 0 for a trivial model and 1 for the real game ([evaluation](#evaluation)); gFVD shown times 10^4.
 Mean ± sample SD over training seeds 0, 1 and 2, each trained cold on one Colab A100-SXM4-40GB and scored by `eval.py` on the public eval clips; train s is the slowest seed.
@@ -93,7 +93,7 @@ Train and score your own on an NVIDIA GPU:
 
 ```bash
 uv pip install -r pyproject.toml --extra cuda
-HF_DATASET=https://huggingface.co/datasets/maharishiva/tinywmcraft
+HF_DATASET=https://huggingface.co/datasets/maharishiva/tinywmcraft-v3
 curl -L --fail --create-dirs -o data/train.npz $HF_DATASET/resolve/main/train.npz
 curl -L --fail -o data/eval.npz $HF_DATASET/resolve/main/eval.npz
 python train.py --data data/train.npz --out runs/base/model.npz --seed 0   # under 600 s on one A100, compilation included
@@ -167,4 +167,4 @@ Ground truth left, world model right, same actions.</sub></p>
 
 MIT license. Game sprites in the browser player are from Craftax (MIT).
 
-[HF_DATASET]: https://huggingface.co/datasets/maharishiva/tinywmcraft
+[HF_DATASET]: https://huggingface.co/datasets/maharishiva/tinywmcraft-v3
