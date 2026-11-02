@@ -1,19 +1,18 @@
 // What each place and make action needs in Craftax-Classic (craftax 1.5.0, game_logic.py), and a bubble in the tutorial's
 // look over its key the first time it is pressed on this browser. "Next to" is one of the 8 tiles around the player.
 const I = n => `<img src="icons/${n}.png" alt="${n}">`;
-const NEAR_T = 'next to a table ' + I('place_table'), NEAR_TF = `next to a table ${I('place_table')} and a furnace ${I('place_furnace')}`;
-const IRON = `1 ${I('wood')} 1 ${I('stone')} 1 ${I('coal')} 1 ${I('iron')}`;
-export const RECIPES = {
-  7: ['Place stone', `1 ${I('stone')}`, 'on grass, sand, path, water or lava'],
-  8: ['Table', `2 ${I('wood')}`, 'chop trees for wood'],
-  9: ['Furnace', `1 ${I('stone')}`, 'mine stone with a wood pickaxe'],
-  10: ['Plant', `1 ${I('sapling')}`, 'on grass; hit grass for saplings'],
-  11: ['Wood pickaxe', `1 ${I('wood')}`, `${NEAR_T}; mines stone and coal`],
-  12: ['Stone pickaxe', `1 ${I('wood')} 1 ${I('stone')}`, `${NEAR_T}; mines iron`],
-  13: ['Iron pickaxe', IRON, `${NEAR_TF}; mines diamonds`],
-  14: ['Wood sword', `1 ${I('wood')}`, NEAR_T],
-  15: ['Stone sword', `1 ${I('wood')} 1 ${I('stone')}`, NEAR_T],
-  16: ['Iron sword', IRON, NEAR_TF],
+const T = I('place_table'), F = I('place_furnace'), IRON = `1 ${I('wood')} 1 ${I('stone')} 1 ${I('coal')} 1 ${I('iron')}`;
+export const RECIPES = {   // [needs, next to]
+  7: [`1 ${I('stone')}`, ''],
+  8: [`2 ${I('wood')}`, ''],
+  9: [`1 ${I('stone')}`, ''],
+  10: [`1 ${I('sapling')}`, ''],
+  11: [`1 ${I('wood')}`, T],
+  12: [`1 ${I('wood')} 1 ${I('stone')}`, T],
+  13: [IRON, `${T} ${F}`],
+  14: [`1 ${I('wood')}`, T],
+  15: [`1 ${I('wood')} 1 ${I('stone')}`, T],
+  16: [IRON, `${T} ${F}`],
 };
 const KEY = 'tinywmcraft.recipes', SHOW_MS = 5000;
 
@@ -27,7 +26,7 @@ export function recipes(root) {
   const seen = new Set((localStorage.getItem(KEY) ?? '').split(',').filter(Boolean).map(Number));
   let timer = 0, on = null;
 
-  function place() {  // over the key, the pointer on its middle, kept inside the player
+  function place() {  // over the key (under it at the top), the pointer on its middle, kept inside the player
     if (!on) return;
     const R = root.getBoundingClientRect(), r = on.getBoundingClientRect(), pad = 3;
     const t = { x: r.left - R.left, y: r.top - R.top, w: r.width, h: r.height };
@@ -35,7 +34,9 @@ export function recipes(root) {
     bub.style.maxWidth = R.width - 8 + 'px';
     const w = bub.offsetWidth, h = bub.offsetHeight, cx = t.x + t.w / 2;
     const x = Math.min(Math.max(cx - w / 2, 4), R.width - w - 4);
-    Object.assign(bub.style, { left: x + 'px', top: t.y - pad - 12 - h + 'px' });
+    const above = t.y - pad - 12 - h, up = above >= 0 && R.top + above >= 0;   // below the key when there is no room above
+    Object.assign(bub.style, { left: x + 'px', top: (up ? above : t.y + t.h + pad + 12) + 'px' });
+    bub.className = 'bub ' + (up ? 'top' : 'bottom');
     bub.style.setProperty('--ax', Math.min(Math.max(cx - x, 14), w - 14) + 'px');
   }
 
@@ -50,10 +51,10 @@ export function recipes(root) {
     hide();
     seen.add(a);
     localStorage.setItem(KEY, [...seen].join(','));
-    const [name, needs, where] = RECIPES[a];
+    const [needs, near] = RECIPES[a];
     on = root.querySelector(`.acts .key[data-a="${a}"]`);
     if (!on) return;
-    bub.innerHTML = `${name}: needs ${needs}<small>${where}</small>`;
+    bub.innerHTML = `needs: ${needs}` + (near ? `<br>next to: ${near}` : '');
     layer.hidden = false;
     place();
     timer = setTimeout(hide, SHOW_MS);

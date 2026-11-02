@@ -57,6 +57,8 @@ figcaption, .note { color:var(--mid); font-size:12px; line-height:1.5; margin-to
 figcaption { text-align:center; text-wrap:balance; }
 .tree { display:block; min-width:640px; width:100%; height:auto; margin:14px 0 6px; font-size:10.5px; }
 .tree image { image-rendering:pixelated; }
+.book { margin:10px 0 0; }
+.book summary { cursor:pointer; color:var(--o); font-size:13px; }
 .recipes { border-collapse:collapse; width:100%; margin:10px 0 0; font-size:13px; }
 .recipes th { color:var(--mid); font-weight:normal; text-align:left; padding:4px 10px 4px 0; }
 .recipes td { padding:4px 10px 4px 0; border-top:1px solid #222; vertical-align:middle; white-space:nowrap; }
@@ -145,10 +147,7 @@ footer { color:var(--dim); font-size:12px; margin-top:52px; padding-top:14px; bo
 
 <!--{challenge-->
 <h2 id="speedrun"><a id="challenge"></a>diamond speedrun</h2>
-<p><b>Get a diamond <img class="ico" src="icons/diamond.png" alt=""> inside the world model.</b> In the player above, not in the real game. No code and no GPU needed. The fastest run posted before 24 December 2026 (PST) wins a paper copy of Sutton &amp; Barto's <i>Reinforcement Learning</i>.</p>
-<p><b>What counts:</b> a diamond in the inventory that <a href="?model=iteration3#play">iteration 3</a> draws on this site, the model this page plays; that link keeps playing it when a newer model takes over the page. The player reads the inventory itself: when a diamond shows there on two frames in a row, it says DIAMOND! and marks the clip with the step it came on. The fewest steps win. The score does not count: the model hands out +1s that can be farmed.</p>
-<p><b>How to submit:</b> press save clip, then post the clip in the <a href="https://github.com/Maharishiva/tinywmcraft/discussions/9">Diamond Speedrun discussion</a> on GitHub, and on X with the clip as a video, a link to the repo and a tag for <a href="https://x.com/rldoeswork">@rldoeswork</a> (share writes the caption and hands you the clip). A run needs both posts. The clip shows the seed and the action under every frame, so the maintainer can watch it and replay the run. Edited videos, other model files and the real game do not count. The full rules: <a href="https://github.com/Maharishiva/tinywmcraft/blob/main/diamond_speedrun.md">diamond_speedrun.md</a>.</p>
-<p><b>Or find the best glitch.</b> The model hallucinates in funny ways: post your weirdest clip in the <a href="https://github.com/Maharishiva/tinywmcraft/discussions/10">glitch discussion</a>. No prize, just kudos for breaking the world. Every diamond clip and the best glitches go up on this site with your handle.</p>
+<p><b>Get a diamond <img class="ico" src="icons/diamond.png" alt=""> inside the world model</b>, in the player above, in the fewest steps. The fastest run posted before 24 December 2026 (PST) wins a paper copy of Sutton &amp; Barto's <i>Reinforcement Learning</i>. Press save clip, then post it in the <a href="https://github.com/Maharishiva/tinywmcraft/discussions/9">discussion</a> and on X. Rules: <a href="https://github.com/Maharishiva/tinywmcraft/blob/main/diamond_speedrun.md">diamond_speedrun.md</a>. Found a funny glitch? Post it in the <a href="https://github.com/Maharishiva/tinywmcraft/discussions/10">glitch discussion</a>.</p>
 <h3 id="achievements">the road to a diamond</h3>
 <div class="scroll"><svg class="tree" viewBox="0 0 768 322" role="img" aria-label="The 22 achievements of Craftax-Classic and what each one needs">
 <defs><marker id="ah" viewBox="0 0 6 6" refX="5" refY="3" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0L6,3L0,6z" fill="#6a6a6a"/></marker></defs>
@@ -193,6 +192,7 @@ footer { color:var(--dim); font-size:12px; margin-top:52px; padding-top:14px; bo
 <g class="any"><image href="icons/skeleton.png" x="610" y="272" width="28" height="28"/><text x="624" y="313">skeleton</text></g>
 <g class="any"><image href="icons/sleep.png" x="706" y="272" width="28" height="28"/><text x="720" y="313">wake up</text></g>
 </svg></div>
+<details class="book"><summary>crafting recipe book</summary>
 <table class="recipes"><thead><tr><th>make</th><th>needs</th><th>where</th></tr></thead><tbody>
 <tr><td><img src="icons/place_table.png" alt="place_table"> table</td><td>2 <img src="icons/wood.png" alt="wood"></td><td>on an open tile</td></tr>
 <tr><td><img src="icons/make_wood_pickaxe.png" alt="make_wood_pickaxe"> wood pickaxe</td><td>1 <img src="icons/wood.png" alt="wood"></td><td>next to a table; mines stone and coal</td></tr>
@@ -206,6 +206,7 @@ footer { color:var(--dim); font-size:12px; margin-top:52px; padding-top:14px; bo
 <tr><td><img src="icons/place_plant.png" alt="place_plant"> plant</td><td>1 <img src="icons/sapling.png" alt="sapling"></td><td>on grass</td></tr>
 </tbody></table>
 <p class="note">Wood comes from trees by hand, saplings from grass (1 hit in 10); stone and coal need a wood pickaxe, iron a stone pickaxe, diamonds an iron pickaxe. "Next to" is one of the 8 tiles around you. These are the real game's rules: the world model learned them from pixels and does not always keep them. In the real game, the first unlock of each of the 22 achievements is worth +1.</p>
+</details>
 <!--challenge}-->
 
 <!--{how-->
