@@ -59,6 +59,7 @@ figcaption { text-align:center; text-wrap:balance; }
 .tree image { image-rendering:pixelated; }
 .book { margin:10px 0 0; }
 .book summary { cursor:pointer; color:var(--o); font-size:13px; }
+.book summary .bk { width:16px; height:auto; margin:0 6px 0 2px; vertical-align:-3px; image-rendering:pixelated; }
 .recipes { border-collapse:collapse; width:100%; margin:10px 0 0; font-size:13px; }
 .recipes th { color:var(--mid); font-weight:normal; text-align:left; padding:4px 10px 4px 0; }
 .recipes td { padding:4px 10px 4px 0; border-top:1px solid #222; vertical-align:middle; white-space:nowrap; }
@@ -192,7 +193,7 @@ footer { color:var(--dim); font-size:12px; margin-top:52px; padding-top:14px; bo
 <g class="any"><image href="icons/skeleton.png" x="610" y="272" width="28" height="28"/><text x="624" y="313">skeleton</text></g>
 <g class="any"><image href="icons/sleep.png" x="706" y="272" width="28" height="28"/><text x="720" y="313">wake up</text></g>
 </svg></div>
-<details class="book"><summary>crafting recipe book</summary>
+<details class="book"><summary><img class="bk" src="icons/book.png" alt="">crafting recipe book</summary>
 <table class="recipes"><thead><tr><th>make</th><th>needs</th><th>where</th></tr></thead><tbody>
 <tr><td><img src="icons/place_table.png" alt="place_table"> table</td><td>2 <img src="icons/wood.png" alt="wood"></td><td>on an open tile</td></tr>
 <tr><td><img src="icons/make_wood_pickaxe.png" alt="make_wood_pickaxe"> wood pickaxe</td><td>1 <img src="icons/wood.png" alt="wood"></td><td>next to a table; mines stone and coal</td></tr>
