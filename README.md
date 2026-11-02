@@ -34,8 +34,8 @@ and only then open a pull request.
 | # | change | score ↑ | gFVD ↓ | logic ↑ | memory ↑ | code |
 |---|---|---:|---:|---:|---:|---|
 | 1 | [train_tiny.py](train_tiny.py): the whole model in 178 lines, no custom kernels | 0.287 ± 0.019 | 67.2 | 0.03 | 0.056 | [23e6515](https://github.com/Maharishiva/tinywmcraft/blob/23e6515/train_tiny.py) |
-| 2 | tile transformer tokenizer, fused Pallas kernels, hard-window mining, symlog reward head | 0.463 ± 0.023 | 44.3 | 0.55 | 0.087 | [80b1c34](https://github.com/Maharishiva/tinywmcraft/blob/80b1c34/train.py) |
-| 3 | [train.py](train.py): clean/masked/noised tokenizer, flow matching + shortcut loss, Muon, two fused kernels, 1/8 game-start windows | 0.562 ± 0.017 | 27.2 | 0.69 | 0.087 | [8538aa5](https://github.com/Maharishiva/tinywmcraft/blob/8538aa5/train.py) |
+| 2 | tile transformer tokenizer trained on clean, half-masked and noised frames, fused Pallas kernels, hard-window mining, half the windows from game starts, symlog two-hot reward head | 0.463 ± 0.023 | 44.3 | 0.55 | 0.087 | [80b1c34](https://github.com/Maharishiva/tinywmcraft/blob/80b1c34/train.py) |
+| 3 | [train.py](train.py): shortcut loss, the heads' gradient into the trunk cut to a tenth in the second half, no hard-window mining, 1/8 game-start windows, two fused kernels, 349 lines | 0.562 ± 0.017 | 27.2 | 0.69 | 0.087 | [8538aa5](https://github.com/Maharishiva/tinywmcraft/blob/8538aa5/train.py) |
 
 Mean ± sample SD over seeds 0, 1 and 2 on one Colab A100-SXM4-40GB. Beat iteration 3 and yours is iteration 4: the crown goes next to your GitHub login and the browser player switches to your model. Every metric: [evaluation](#evaluation) and the [live leaderboard](https://maharishiva.github.io/tinywmcraft/benchmark.html).
 
