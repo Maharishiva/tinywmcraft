@@ -5,6 +5,7 @@
 import { create } from './wgr.js';
 import { inventory, facing, fresh } from './hud.js';
 import { tutorial } from './tutorial.js';
+import { recipes } from './craft.js';
 import { asleep } from './sleep.js';
 import { noise, PAST, NOISE_BUF, RNOISE } from './seeded.js';
 
@@ -113,6 +114,7 @@ root.innerHTML = `<div class="screen"><div class="view"><canvas width="63" heigh
 const canvas = root.querySelector('canvas'), msg = root.querySelector('.msg'), st = root.querySelector('.st');
 const keys = root.querySelector('.keys'), acts = root.querySelector('.acts'), btns = root.querySelector('.btns');
 const banner = root.querySelector('.banner'), meta = root.querySelector('.meta');
+const help = recipes(root);   // a craft or place key's recipe over it, the first time it is pressed
 const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
 // fill: frames in the window, the slot the next one goes to (31 once it is full)
@@ -574,6 +576,7 @@ function press(a) {  // an action index, 'reset', 'save', 'share', 'wake' (stop 
     return reset();
   }
   if (busy || end || skipped >= 0) return;   // while a sleep is skipped, only "wake me" acts
+  if (!coach) help.show(a);   // not during the walkthrough, which has its own bubble
   step(a).catch(fail);
 }
 

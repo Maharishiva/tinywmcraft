@@ -65,6 +65,8 @@
 #play .coach .bub.cap { display: flex; align-items: center; justify-content: center; padding: 4px 10px; text-align: center;
   white-space: normal; box-shadow: none; }
 #play .coach .bub.cap::after { display: none; }
+#play .coach.recipe .bub { font-size: 18px; line-height: 1.5; text-align: left; }
+#play .coach.recipe .ring { animation: none; }
 #play .coach .skip { position: absolute; pointer-events: auto; padding: 4px 8px; font: inherit; font-size: 12px; color: #aaaaa8;
   background: #0a0a0acc; border: 1px solid #3a3a3e; border-radius: 0; cursor: pointer; }
 
